@@ -49,6 +49,7 @@ def setup_tracing():
     resource = Resource.create(attributes={"service.name": SERVICE_NAME})
     provider = TracerProvider(resource=resource)
 
+    # Keep the bot running even if the collector is temporarily unavailable.
     if is_otlp_endpoint_reachable(OTLP_ENDPOINT):
         exporter = OTLPSpanExporter(endpoint=OTLP_ENDPOINT, insecure=True)
         provider.add_span_processor(BatchSpanProcessor(exporter))
@@ -68,7 +69,7 @@ def collect_metrics():
     if psutil is not None:
         cpu_usage = round(psutil.cpu_percent(interval=None), 1)
         memory_usage = round(psutil.virtual_memory().percent, 1)
-        disk_usage = round(psutil.disk_usage("/" ).percent, 1)
+        disk_usage = round(psutil.disk_usage("/").percent, 1)
         return {
             "cpu_percent": cpu_usage,
             "memory_percent": memory_usage,
@@ -149,6 +150,17 @@ def start_http_server():
     server.serve_forever()
 
 
+def build_status_message(metrics, severity):
+    if severity == "CRITICAL":
+        return (
+            f"⚠️ ALERT! Severe issue detected: CPU {metrics['cpu_percent']}%, "
+            f"Mem {metrics['memory_percent']}%, Disk {metrics['disk_percent']}%"
+        )
+    if severity == "WARNING":
+        return f"⚠️ Warning. CPU: {metrics['cpu_percent']}%, Mem: {metrics['memory_percent']}%, Disk: {metrics['disk_percent']}%"
+    return f"✅ System stable. CPU: {metrics['cpu_percent']}%, Mem: {metrics['memory_percent']}%, Disk: {metrics['disk_percent']}%"
+
+
 def main():
     threading.Thread(target=start_http_server, daemon=True).start()
     print("🚀 Health Alert Bot started running...")
@@ -171,11 +183,7 @@ def main():
                     alert_span.set_attribute("alert.level", "CRITICAL")
                     alert_span.set_attribute("alert.reason", ",".join(reasons))
                     alert_span.add_event("cpu_threshold_exceeded", {"cpu_percent": metrics["cpu_percent"]})
-                    print(f"⚠️ ALERT! Severe issue detected: CPU {metrics['cpu_percent']}%, Mem {metrics['memory_percent']}%, Disk {metrics['disk_percent']}%")
-            elif severity == "WARNING":
-                print(f"⚠️ Warning. CPU: {metrics['cpu_percent']}%, Mem: {metrics['memory_percent']}%, Disk: {metrics['disk_percent']}%")
-            else:
-                print(f"✅ System stable. CPU: {metrics['cpu_percent']}%, Mem: {metrics['memory_percent']}%, Disk: {metrics['disk_percent']}%")
+            print(build_status_message(metrics, severity))
 
         record_incident(metrics, severity, reasons)
         time.sleep(CHECK_INTERVAL_SECONDS)
