@@ -34,6 +34,11 @@ This is not just a script that prints numbers. It shows:
 3. Open the dashboard:
    - http://127.0.0.1:8000/health
    - http://127.0.0.1:8000/metrics
+# Recommended Python version: 3.10+
+pip install -r requirements.txt
+python app.py
+
+
 
 ## Optional environment variables
 ```bash
