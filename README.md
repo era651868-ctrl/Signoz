@@ -35,9 +35,10 @@ This is not just a script that prints numbers. It shows:
    - http://127.0.0.1:8000/health
    - http://127.0.0.1:8000/metrics
 # Recommended Python version: 3.10+
+```bash
 pip install -r requirements.txt
 python app.py
-
+```
 
 
 ## Optional environment variables
