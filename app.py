@@ -123,7 +123,7 @@ def record_incident(metrics, severity, reasons, incidents_file=None):
 
 class HealthRequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
-        if self.path == "/health":
+        if self.path in ("/", "/health"):
             self._send_json(200, {"status": "ok", "service": SERVICE_NAME})
         elif self.path == "/metrics":
             self._send_json(200, {"latest": metrics_history[-1] if metrics_history else None, "history": metrics_history[-10:]})
@@ -191,3 +191,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
