@@ -11,6 +11,10 @@ Health: https://signoz-57js.onrender.com/health
 
 Incident: https://signoz-57js.onrender.com/incidents
 
+Dev.to Blog : https://dev.to/uzair_43482468fbde1f12452/building-an-automated-infrastructure-health-monitoring-bot-with-opentelemetry-and-signoz-1min
+
+YouTube Demo: https://youtube.com/shorts/3iGRSQba2n8?si=j0R4hOmG7ZITeFmE
+
 ## Why this is a strong hackathon project
 This project is built for Track 03: Build Your Own. It demonstrates:
 - real-world SRE-style monitoring
