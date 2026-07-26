@@ -2,6 +2,9 @@
 
 This project is a polished hackathon submission for the SigNoz + WeMakeDevs challenge. It combines OpenTelemetry instrumentation, real-time system monitoring, and a lightweight observability dashboard to show how infrastructure health can be made visible and actionable.
 
+
+live Deployment: https://signoz-57js.onrender.com/
+
 ## Why this is a strong hackathon project
 This project is built for Track 03: Build Your Own. It demonstrates:
 - real-world SRE-style monitoring
