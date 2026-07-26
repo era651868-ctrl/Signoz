@@ -10,7 +10,7 @@ from urllib.parse import urlparse
 
 try:
     import psutil
-except ImportError:  # pragma: no cover - optional dependency
+except ImportError:
     psutil = None
 
 from opentelemetry import trace
@@ -49,7 +49,6 @@ def setup_tracing():
     resource = Resource.create(attributes={"service.name": SERVICE_NAME})
     provider = TracerProvider(resource=resource)
 
-    # Keep the bot running even if the collector is temporarily unavailable.
     if is_otlp_endpoint_reachable(OTLP_ENDPOINT):
         exporter = OTLPSpanExporter(endpoint=OTLP_ENDPOINT, insecure=True)
         provider.add_span_processor(BatchSpanProcessor(exporter))
@@ -121,9 +120,125 @@ def record_incident(metrics, severity, reasons, incidents_file=None):
     return incident
 
 
+HTML_DASHBOARD = """<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Health Alert Bot Dashboard</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --card: #1e293b;
+            --text: #f8fafc;
+            --accent: #38bdf8;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+        }
+        .container { max-width: 900px; margin: 0 auto; }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; padding-bottom: 15px; }
+        .badge { padding: 4px 12px; border-radius: 9999px; font-weight: bold; font-size: 0.85rem; }
+        .bg-normal { background: rgba(34, 197, 94, 0.2); color: var(--success); border: 1px solid var(--success); }
+        .bg-warning { background: rgba(245, 158, 11, 0.2); color: var(--warning); border: 1px solid var(--warning); }
+        .bg-critical { background: rgba(239, 68, 68, 0.2); color: var(--danger); border: 1px solid var(--danger); }
+        
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-top: 20px; }
+        .card { background: var(--card); border-radius: 12px; padding: 20px; border: 1px solid #334155; }
+        .card h3 { margin: 0 0 10px 0; font-size: 1rem; color: #94a3b8; }
+        .value { font-size: 2rem; font-weight: bold; }
+        
+        .progress-bar { background: #334155; height: 8px; border-radius: 4px; margin-top: 10px; overflow: hidden; }
+        .progress-fill { height: 100%; width: 0%; transition: width 0.3s ease; }
+        
+        .logs { margin-top: 30px; background: var(--card); border-radius: 12px; padding: 20px; border: 1px solid #334155; }
+        .log-entry { font-family: monospace; font-size: 0.85rem; padding: 8px 0; border-bottom: 1px solid #334155; }
+        .log-entry:last-child { border-bottom: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h2>🤖 Health Alert Bot</h2>
+            <span id="status-badge" class="badge bg-normal">SYSTEM ONLINE</span>
+        </div>
+
+        <div class="grid">
+            <div class="card">
+                <h3>CPU Usage</h3>
+                <div class="value" id="cpu-val">--%</div>
+                <div class="progress-bar"><div id="cpu-bar" class="progress-fill" style="background: var(--accent);"></div></div>
+            </div>
+            <div class="card">
+                <h3>Memory Usage</h3>
+                <div class="value" id="mem-val">--%</div>
+                <div class="progress-bar"><div id="mem-bar" class="progress-fill" style="background: var(--accent);"></div></div>
+            </div>
+            <div class="card">
+                <h3>Disk Usage</h3>
+                <div class="value" id="disk-val">--%</div>
+                <div class="progress-bar"><div id="disk-bar" class="progress-fill" style="background: var(--accent);"></div></div>
+            </div>
+        </div>
+
+        <div class="logs">
+            <h3>Recent Telemetry History</h3>
+            <div id="log-list">Loading telemetry...</div>
+        </div>
+    </div>
+
+    <script>
+        async function updateDashboard() {
+            try {
+                const res = await fetch('/metrics');
+                const data = await res.json();
+                if (!data.latest) return;
+
+                const { cpu_percent, memory_percent, disk_percent, severity } = data.latest;
+                
+                document.getElementById('cpu-val').innerText = cpu_percent + '%';
+                document.getElementById('mem-val').innerText = memory_percent + '%';
+                document.getElementById('disk-val').innerText = disk_percent + '%';
+
+                document.getElementById('cpu-bar').style.width = cpu_percent + '%';
+                document.getElementById('mem-bar').style.width = memory_percent + '%';
+                document.getElementById('disk-bar').style.width = disk_percent + '%';
+
+                const badge = document.getElementById('status-badge');
+                badge.innerText = severity || 'NORMAL';
+                badge.className = 'badge ' + (severity === 'CRITICAL' ? 'bg-critical' : severity === 'WARNING' ? 'bg-warning' : 'bg-normal');
+
+                const logList = document.getElementById('log-list');
+                logList.innerHTML = data.history.reverse().map(item => `
+                    <div class="log-entry">
+                        [${item.timestamp}] Severity: <strong>${item.severity}</strong> | CPU: ${item.cpu_percent}% | MEM: ${item.memory_percent}% | DISK: ${item.disk_percent}%
+                    </div>
+                `).join('');
+            } catch (e) {
+                console.error("Failed to fetch metrics", e);
+            }
+        }
+
+        setInterval(updateDashboard, 3000);
+        updateDashboard();
+    </script>
+</body>
+</html>
+"""
+
+
 class HealthRequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
-        if self.path in ("/", "/health"):
+        if self.path in ("/", "/dashboard"):
+            self._send_html(200, HTML_DASHBOARD)
+        elif self.path == "/health":
             self._send_json(200, {"status": "ok", "service": SERVICE_NAME})
         elif self.path == "/metrics":
             self._send_json(200, {"latest": metrics_history[-1] if metrics_history else None, "history": metrics_history[-10:]})
@@ -134,6 +249,14 @@ class HealthRequestHandler(BaseHTTPRequestHandler):
 
     def log_message(self, format, *args):
         return
+
+    def _send_html(self, status_code, html_content):
+        body = html_content.encode("utf-8")
+        self.send_response(status_code)
+        self.send_header("Content-Type", "text/html")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
 
     def _send_json(self, status_code, payload):
         body = json.dumps(payload).encode("utf-8")
@@ -191,5 +314,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
+    
